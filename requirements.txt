@@ -1,0 +1,36 @@
+# ResearchMate - 商业文章素材采集助手
+# Python 依赖包列表
+# 使用方法：pip install -r requirements.txt
+
+# 核心依赖
+requests>=2.31.0          # HTTP 请求库，用于网页采集
+beautifulsoup4>=4.12.0    # HTML 解析库
+lxml>=4.9.0               # XML/HTML 解析器（BeautifulSoup 后端）
+
+# 数据处理
+pandas>=2.0.0             # 数据分析与处理
+jsonschema>=4.19.0        # JSON 数据验证
+
+# 文本处理
+jieba>=0.42.0             # 中文分词（用于关键词提取）
+textblob>=0.17.1          # 文本分析（可选，用于情感分析）
+
+# 配置管理
+pyyaml>=6.0.1             # YAML 配置文件支持
+python-dotenv>=1.0.0      # 环境变量管理
+
+# 日志与调试
+rich>=13.6.0              # 美化命令行输出
+tqdm>=4.66.0              # 进度条显示
+
+# 测试（开发环境）
+pytest>=7.4.0             # 单元测试框架
+pytest-cov>=4.1.0         # 测试覆盖率
+
+# 代码质量（开发环境）
+flake8>=6.1.0             # 代码风格检查
+mypy>=1.6.0               # 类型检查
+
+# 文档（可选）
+mkdocs>=1.5.0             # 生成项目文档网站
+mkdocs-material>=9.4.0    # Material 主题

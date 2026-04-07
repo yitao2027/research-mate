@@ -1,0 +1,48 @@
+# ResearchMate - .gitignore 文件
+
+# Python 字节码
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 虚拟环境
+.venv/
+venv/
+env/
+ENV/
+
+# IDE 配置
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统文件
+.DS_Store
+Thumbs.db
+
+# 项目特定文件
+output/              # 导出的素材报告目录
+*.log                # 日志文件
+config.json          # 个人配置文件（含 API Key 等敏感信息）
+research_mate_config.json
+
+# 测试与覆盖率
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# 文档构建
+docs/_build/
+site/
+
+# Jupyter Notebook 检查点
+.ipynb_checkpoints/
+
+# 临时文件
+tmp/
+temp/
+*.tmp
