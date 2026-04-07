@@ -1,0 +1,95 @@
+# ResearchMate - 配置文件模板
+# 复制此文件为 config.yaml 并根据需要修改
+
+# ===========================================
+# 采集源配置
+# ===========================================
+sources:
+  # 行业报告（券商研报、咨询公司报告）
+  industry_reports:
+    enabled: true
+    sources:
+      - name: 36kr
+        url: https://36kr.com
+        categories: [科技媒体，行业分析]
+      - name: huxiu
+        url: https://www.huxiu.com
+        categories: [科技媒体，商业评论]
+      - name: tmtpost
+        url: https://www.tmtpost.com
+        categories: [科技媒体，财经新闻]
+    
+  # 科技媒体
+  tech_media:
+    enabled: true
+    sources:
+      - name: latepost
+        url: https://www.thepaper.cn
+        categories: [财经新闻，深度报道]
+      - name: jiemian
+        url: https://www.jiemian.com
+        categories: [财经新闻，公司新闻]
+    
+  # 公司公告（需要 API 配置）
+  company_filings:
+    enabled: false
+    api_key: ""  # 填入聚数据等 API 密钥
+    sources:
+      - name: cninfo
+        url: http://www.cninfo.com.cn
+        categories: [财报，公告]
+    
+  # 社交媒体
+  social_media:
+    enabled: true
+    platforms:
+      - zhihu
+      - xueqiu
+
+# ===========================================
+# 输出格式配置
+# ===========================================
+output:
+  format: markdown          # 支持：markdown, json, csv
+  include_citations: true   # 是否包含引用链接
+  auto_tag: true           # 自动打标签
+  output_dir: ./materials  # 默认输出目录
+  filename_template: "{date}_{topic}"  # 文件名模板
+
+# ===========================================
+# 质量过滤配置
+# ===========================================
+filters:
+  min_credibility_score: 0.7  # 最低可信度阈值 (0-1)
+  max_age_days: 30           # 资料最大年龄（天）
+  require_data_points: true  # 必须包含数据点
+  min_content_length: 100    # 最小内容长度
+  
+# ===========================================
+# 评分权重配置
+# ===========================================
+weights:
+  credibility: 0.40      # 来源可信度权重
+  timeliness: 0.25       # 时效性权重
+  completeness: 0.20     # 数据完整性权重
+  verification: 0.15     # 交叉验证权重
+
+# ===========================================
+# 爬虫配置
+# ===========================================
+crawler:
+  user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  request_timeout: 10         # 请求超时时间（秒）
+  max_retries: 3             # 最大重试次数
+  retry_delay: 2             # 重试间隔（秒）
+  concurrent_requests: 5     # 并发请求数
+  rate_limit: 1              # 每秒请求数限制（避免被封）
+
+# ===========================================
+# 日志配置
+# ===========================================
+logging:
+  level: INFO              # DEBUG, INFO, WARNING, ERROR
+  file: logs/research_mate.log
+  max_size_mb: 10
+  backup_count: 3

@@ -10,6 +10,7 @@ ResearchMate - 商业文章素材采集助手
 import argparse
 import os
 import sys
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -20,7 +21,7 @@ try:
     from collector import MaterialCollector
     from classifier import MaterialClassifier
     from evaluator import QualityEvaluator
-    from exporter import MaterialExporter
+    from exporter_enhanced import EnhancedMaterialExporter
 except ImportError as e:
     print(f"⚠️  导入模块失败：{e}")
     print("请确保已安装依赖：pip install -r requirements.txt")
@@ -121,18 +122,83 @@ def run_test_mode():
     return True
 
 
-def collect_materials(topic: str, days_back: int = 7, config: dict = None):
-    """执行素材采集流程"""
+def ask_human(topic: str = None, keywords: list = None, target_words: int = None):
+    """向用户提问收集关键信息"""
+    
+    print("\n" + "=" * 60)
+    print("📋 ResearchMate 素材采集助手")
+    print("=" * 60)
+    
+    # 问题 1：选题描述
+    if not topic:
+        topic = input("\n❓ 请描述您的选题（想写什么主题的文章）：").strip()
+        while not topic:
+            print("   ⚠️  选题不能为空，请重新输入")
+            topic = input("\n❓ 请描述您的选题：").strip()
+    
+    # 问题 2：关键实体（产品/企业/人物/事件）
+    if not keywords:
+        print("\n💡 为了更精准地采集素材，请提供以下信息：")
+        keywords_input = input("   关键词（产品名称、企业名称、人物姓名或事件名称，多个用逗号分隔）：").strip()
+        
+        if keywords_input:
+            # 支持中英文逗号
+            keywords = [k.strip() for k in re.split(r'[,,]', keywords_input) if k.strip()]
+        else:
+            # 从选题中自动提取关键词（简化版）
+            keywords = [topic]
+            print(f"   ℹ️  未提供关键词，将使用选题作为关键词：{keywords}")
+    
+    # 问题 3：目标字数
+    if not target_words:
+        target_words_input = input("\n📝 您计划写多少字的内容？（例如：3000）：").strip()
+        
+        try:
+            target_words = int(target_words_input)
+            if target_words < 500:
+                print("   ⚠️  字数过少，已调整为最低 500 字")
+                target_words = 500
+            elif target_words > 100000:
+                print("   ⚠️  字数过多，已调整为最高 100000 字")
+                target_words = 100000
+        except ValueError:
+            print(f"   ⚠️  无效输入，使用默认值 3000 字")
+            target_words = 3000
+    
+    # 计算需要采集的素材字数（8-10 倍）
+    min_material_words = target_words * 8
+    max_material_words = target_words * 10
+    
+    print("\n" + "-" * 60)
+    print("✅ 已确认采集需求：")
+    print(f"   📌 选题：{topic}")
+    print(f"   🔑 关键词：{', '.join(keywords)}")
+    print(f"   📊 目标字数：{target_words} 字")
+    print(f"   📚 预计采集素材：{min_material_words}-{max_material_words} 字（{target_words}字的 8-10 倍）")
+    print("-" * 60)
+    
+    return {
+        'topic': topic,
+        'keywords': keywords,
+        'target_words': target_words,
+        'material_words_range': (min_material_words, max_material_words)
+    }
+
+
+def collect_materials(topic: str, days_back: int = 7, config: dict = None, keywords: list = None, target_words: int = None):
+    """执行素材采集流程（增强版）"""
     
     print(f"\n🎯 开始采集主题：【{topic}】")
+    print(f"🔑 关键词：{', '.join(keywords) if keywords else topic}")
     print(f"📅 时间范围：过去 {days_back} 天")
+    print(f"📊 目标字数：{target_words} 字")
     print("-" * 60)
     
     # 初始化各模块
     collector = MaterialCollector(config)
     classifier = MaterialClassifier()
     evaluator = QualityEvaluator(config)
-    exporter = MaterialExporter()
+    exporter = EnhancedMaterialExporter()
     
     # Step 1: 采集原始素材
     print("\n📥 Step 1: 采集原始素材...")
@@ -167,50 +233,74 @@ def collect_materials(topic: str, days_back: int = 7, config: dict = None):
     print(f"   高质量素材：{len(high_quality)} 条 (≥{min_score})")
     print(f"   已过滤：{len(evaluated_materials) - len(high_quality)} 条")
     
-    # Step 4: 导出结果
-    print("\n📤 Step 4: 导出素材...")
-    timestamp = datetime.now().strftime("%Y-%m-%d")
-    safe_topic = topic.replace("/", "_").replace("\\", "_")
-    output_dir = f"materials/{timestamp}_{safe_topic}"
+    # Step 4: 生成提纲和总结
+    print("\n📋 Step 4: 生成文章提纲和总结...")
+    outline, summary = exporter.generate_outline_and_summary(evaluated_materials, topic)
+    print("   ✅ 已生成文章提纲")
+    print("   ✅ 已生成核心总结")
     
-    os.makedirs(output_dir, exist_ok=True)
+    # Step 5: 导出 Word 报告
+    print("\n📄 Step 5: 导出 Word 素材报告...")
+    word_report_path = exporter.export_to_word(
+        evaluated_materials, 
+        topic, 
+        outline, 
+        summary,
+        target_words
+    )
+    print(f"   ✅ Word 报告：{word_report_path}")
     
-    # 导出素材卡片
-    materials_md = exporter.export_to_markdown(high_quality, output_dir)
-    print(f"   ✅ 素材卡片：{materials_md}")
+    # Step 6: 生成素材评估表
+    print("\n📊 Step 6: 生成素材评估表...")
+    assessment_csv_path = exporter.generate_assessment_form(evaluated_materials, topic)
+    print(f"   ✅ 评估表：{assessment_csv_path}")
     
-    # 导出引用清单
-    citations_csv = exporter.export_citations(high_quality, output_dir)
-    print(f"   ✅ 引用清单：{citations_csv}")
+    # Step 7: 收集用户反馈
+    print("\n💬 Step 7: 收集素材反馈...")
+    feedback = exporter.collect_feedback(evaluated_materials)
     
-    # 生成写作灵感
-    inspiration_md = exporter.generate_inspiration(high_quality, output_dir)
-    print(f"   ✅ 写作灵感：{inspiration_md}")
+    if feedback['need_more']:
+        print(f"\n📌 用户需要补充的素材方向：")
+        for suggestion in feedback['need_more']:
+            print(f"   - {suggestion}")
+        
+        # 询问是否重新采集
+        retry_input = input("\n❓ 是否需要针对这些方向重新采集素材？(y/n)：").strip().lower()
+        
+        if retry_input == 'y':
+            print("\n🔄 启动补充采集流程...")
+            # TODO: 实现补充采集逻辑
     
+    # 输出最终报告
     print("\n" + "=" * 60)
-    print(f"🎉 采集完成！共处理 {len(high_quality)} 条高质量素材")
-    print(f"📁 输出目录：{output_dir}/")
+    print("🎉 素材采集完成！")
+    print("=" * 60)
+    print(f"📁 Word 报告：{word_report_path}")
+    print(f"📊 评估表格：{assessment_csv_path}")
+    print(f"✅ 高质量素材：{len(evaluated_materials)} 条")
+    print(f"⭐ 满意素材：{feedback['satisfied_count']} 条")
     print("=" * 60)
     
-    return high_quality
+    return evaluated_materials
 
 
 def main():
-    """主函数"""
+    """主函数（增强交互版）"""
     parser = argparse.ArgumentParser(
-        description='ResearchMate - 商业文章素材采集助手',
+        description='ResearchMate - 商业文章素材采集助手（增强版）',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例用法:
-  python main.py --topic "新能源汽车行业"
+  python main.py                          # 交互模式
+  python main.py --topic "新能源汽车行业"  # 指定主题
   python main.py --topic "人工智能" --days 14
-  python main.py --topics-file topics.txt --output batch_output/
-  python main.py --test
+  python main.py --test                   # 测试模式
         """
     )
     
     parser.add_argument('--topic', '-t', type=str, help='采集主题（单个）')
-    parser.add_argument('--topics-file', '-f', type=str, help='包含多个主题的文本文件')
+    parser.add_argument('--keywords', '-k', type=str, help='关键词（逗号分隔）')
+    parser.add_argument('--words', '-w', type=int, help='目标字数')
     parser.add_argument('--days', '-d', type=int, default=7, help='采集过去 N 天的素材（默认：7）')
     parser.add_argument('--output', '-o', type=str, default='materials/', help='输出目录（默认：materials/）')
     parser.add_argument('--config', '-c', type=str, help='配置文件路径（默认：config.yaml）')
@@ -229,33 +319,25 @@ def main():
         run_test_mode()
         return
     
-    # 单主题采集
-    if args.topic:
-        collect_materials(args.topic, days_back=args.days, config=config)
-        return
+    # 交互式提问收集需求
+    topic = args.topic
+    keywords = args.keywords.split(',') if args.keywords else None
+    target_words = args.words
     
-    # 批量主题采集
-    if args.topics_file:
-        if not os.path.exists(args.topics_file):
-            print(f"❌ 文件不存在：{args.topics_file}")
-            return
-        
-        with open(args.topics_file, 'r', encoding='utf-8') as f:
-            topics = [line.strip() for line in f if line.strip()]
-        
-        print(f"\n📋 检测到 {len(topics)} 个主题，开始批量采集...")
-        
-        all_materials = []
-        for i, topic in enumerate(topics, 1):
-            print(f"\n[{i}/{len(topics)}] 处理主题：{topic}")
-            materials = collect_materials(topic, days_back=args.days, config=config)
-            all_materials.extend(materials)
-        
-        print(f"\n🎊 批量采集完成！共获得 {len(all_materials)} 条素材")
-        return
+    requirements = ask_human(topic, keywords, target_words)
     
-    # 无参数时显示帮助
-    parser.print_help()
+    topic = requirements['topic']
+    keywords = requirements['keywords']
+    target_words = requirements['target_words']
+    
+    # 执行采集
+    collect_materials(
+        topic, 
+        days_back=args.days, 
+        config=config,
+        keywords=keywords,
+        target_words=target_words
+    )
 
 
 if __name__ == '__main__':

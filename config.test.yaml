@@ -1,0 +1,21 @@
+# ResearchMate 测试配置文件
+# 用于功能演示和测试
+
+sources:
+  industry_reports: true      # 行业报告采集源
+  tech_media: true           # 科技媒体采集源
+  social_media: false        # 社交媒体（暂不可用）
+
+output:
+  format: markdown           # 输出格式：markdown/json/csv
+  include_citations: true    # 包含引用链接
+  auto_tag: true            # 自动打标签
+
+filters:
+  min_credibility_score: 0.5  # 最低可信度阈值
+  max_age_days: 30           # 资料最大年龄（天）
+  require_data_points: false  # 不强制要求数据点（测试模式）
+
+logging:
+  level: DEBUG              # 日志级别
+  save_to_file: true        # 保存日志到文件

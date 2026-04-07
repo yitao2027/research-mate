@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-素材分类器模块
+素材分类器模块（优化版）
 
-使用规则匹配和关键词分析对素材进行智能分类
+使用加权关键词匹配和规则引擎对素材进行智能分类
 支持事实数据、典型案例、专家观点、竞品动态等类别
+
+优化点：
+1. 引入关键词权重机制（核心词权重 > 一般词）
+2. 添加否定词检测，避免误判
+3. 增加组合规则匹配
+4. 支持置信度评估
 """
 
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import re
 
 
@@ -17,57 +23,98 @@ class MaterialClassifier:
     def __init__(self):
         """初始化分类器"""
         
-        # 定义各类别的关键词库
+        # 定义各类别的关键词库（带权重）
+        # 权重说明：3=核心词，2=重要词，1=一般词
         self.category_keywords = {
-            '财务数据': [
-                '营收', '收入', '利润', '净利润', '毛利率', '净利率', '每股收益', 'EPS',
-                '资产负债', '现金流', 'ROE', 'ROA', '同比增长', '环比增长', '财报', '季报', '年报'
-            ],
-            '市场数据': [
-                '市场份额', '市场规模', '占有率', '用户数', 'DAU', 'MAU', '渗透率',
-                '增长率', 'CAGR', '销量', '交付量', '订单量', 'GMV', '客单价'
-            ],
-            '运营数据': [
-                '留存率', '复购率', '转化率', '获客成本', 'LTV', 'CAC', '付费率',
-                '活跃度', '使用时长', '日活', '月活', '装机量', '下载量'
-            ],
-            '融资数据': [
-                '融资', '投资', '估值', 'IPO', '上市', '轮次', '天使轮', 'A 轮', 'B 轮',
-                'C 轮', 'D 轮', 'Pre-IPO', '战略投资', '并购', '收购', '金额', '亿美元', '亿元'
-            ],
-            '产品创新': [
-                '发布', '推出', '上线', '新品', '新产品', '迭代', '版本更新', '功能升级',
-                '技术创新', '专利', '研发', '自研', '首发', '全球首款', '行业首创'
-            ],
-            '企业战略': [
-                '战略', '布局', '转型', '调整', '重组', '架构优化', '业务聚焦',
-                '扩张', '收缩', '出海', '国际化', '本土化', '生态建设', '合作伙伴'
-            ],
-            '高管言论': [
-                '表示', '指出', '强调', '认为', '预测', '预计', '透露', '宣布',
-                '采访', '访谈', '演讲', '发言', 'CEO', '创始人', '董事长', '总裁',
-                '副总裁', 'CFO', 'CTO', '高管', '管理层'
-            ],
-            '行业政策': [
-                '政策', '规定', '办法', '通知', '指导意见', '监管', '合规', '审批',
-                '牌照', '准入', '标准', '规范', '发改委', '工信部', '证监会', '国务院'
-            ],
-            '竞争动态': [
-                '竞争', '对手', '竞品', '对标', '超越', '领先', '落后', '差距',
-                '价格战', '营销战', '人才争夺', '挖角', '挖人', '跳槽'
-            ],
-            '风险事件': [
-                '风险', '危机', '诉讼', '处罚', '罚款', '调查', '召回', '投诉',
-                '负面', '亏损', '下滑', '下跌', '裁员', '倒闭', '破产', '暴雷'
-            ]
+            '财务数据': {
+                '营收': 3, '收入': 3, '利润': 3, '净利润': 3, '毛利率': 3, 
+                '净利率': 3, '每股收益': 3, 'EPS': 3, '资产负债': 2, '现金流': 2, 
+                'ROE': 3, 'ROA': 3, '同比增长': 2, '环比增长': 2, '财报': 3, 
+                '季报': 2, '年报': 2, '净利': 2, '营利': 1
+            },
+            '市场数据': {
+                '市场份额': 3, '市场规模': 3, '占有率': 3, '用户数': 3, 
+                'DAU': 3, 'MAU': 3, '渗透率': 2, '增长率': 2, 'CAGR': 3, 
+                '销量': 2, '交付量': 2, '订单量': 2, 'GMV': 3, '客单价': 2,
+                '装机量': 2, '下载量': 2
+            },
+            '运营数据': {
+                '留存率': 3, '复购率': 3, '转化率': 3, '获客成本': 3, 
+                'LTV': 3, 'CAC': 3, '付费率': 2, '活跃度': 2, '使用时长': 2, 
+                '日活': 2, '月活': 2
+            },
+            '融资数据': {
+                '融资': 3, '投资': 2, '估值': 3, 'IPO': 3, '上市': 3, 
+                '轮次': 2, '天使轮': 3, 'A 轮': 3, 'B 轮': 3, 'C 轮': 3, 
+                'D 轮': 3, 'Pre-IPO': 3, '战略投资': 2, '并购': 2, '收购': 2, 
+                '金额': 1, '亿美元': 2, '亿元': 1
+            },
+            '产品创新': {
+                '发布': 2, '推出': 2, '上线': 2, '新品': 2, '新产品': 3, 
+                '迭代': 2, '版本更新': 2, '功能升级': 2, '技术创新': 3, 
+                '专利': 2, '研发': 2, '自研': 2, '首发': 3, '全球首款': 3, 
+                '行业首创': 3
+            },
+            '企业战略': {
+                '战略': 3, '布局': 2, '转型': 2, '调整': 1, '重组': 2, 
+                '架构优化': 2, '业务聚焦': 3, '扩张': 1, '收缩': 1, 
+                '出海': 2, '国际化': 2, '本土化': 2, '生态建设': 2, 
+                '合作伙伴': 1
+            },
+            '高管言论': {
+                '表示': 2, '指出': 2, '强调': 2, '认为': 2, '预测': 2, 
+                '预计': 2, '透露': 2, '宣布': 2, '采访': 2, '访谈': 3, 
+                '演讲': 2, '发言': 2, 'CEO': 3, '创始人': 3, '董事长': 3, 
+                '总裁': 3, '副总裁': 2, 'CFO': 3, 'CTO': 3, '高管': 2, 
+                '管理层': 2
+            },
+            '行业政策': {
+                '政策': 3, '规定': 2, '办法': 2, '通知': 2, '指导意见': 3, 
+                '监管': 2, '合规': 2, '审批': 2, '牌照': 2, '准入': 2, 
+                '标准': 1, '规范': 1, '发改委': 3, '工信部': 3, '证监会': 3, 
+                '国务院': 3
+            },
+            '竞争动态': {
+                '竞争': 2, '对手': 2, '竞品': 3, '对标': 2, '超越': 2, 
+                '领先': 1, '落后': 1, '差距': 1, '价格战': 3, '营销战': 2, 
+                '人才争夺': 3, '挖角': 2, '挖人': 2, '跳槽': 1
+            },
+            '风险事件': {
+                '风险': 2, '危机': 3, '诉讼': 3, '处罚': 3, '罚款': 3, 
+                '调查': 2, '召回': 3, '投诉': 2, '负面': 2, '亏损': 2, 
+                '下滑': 1, '下跌': 1, '裁员': 3, '倒闭': 3, '破产': 3, 
+                '暴雷': 3
+            }
         }
         
-        # 定义数据类型标识词
-        self.data_indicators = [
-            '%', '％', '亿元', '万元', '亿美元', '百万', '千万', '亿', '万',
-            '倍', '倍', '个百分点', 'pct', 'bps', '同比', '环比', '增长', '下降',
-            '达到', '突破', '超过', '低于', '高于', '约', '左右', '近', '超'
+        # 否定词列表（用于降低误判）
+        self.negation_words = [
+            '未', '没有', '无', '非', '不', '否', '莫', '勿', '别', '休',
+            '尚未', '并未', '并无', '不曾', '未能', '不可', '不会'
         ]
+        
+        # 数据类型标识词（带权重）
+        self.data_indicators = {
+            '%': 2, '％': 2, '亿元': 2, '万元': 1, '亿美元': 3, '百万': 1, 
+            '千万': 1, '亿': 1, '万': 1, '倍': 1, '个百分点': 2, 'pct': 2, 
+            'bps': 2, '同比': 2, '环比': 2, '增长': 1, '下降': 1, 
+            '达到': 1, '突破': 1, '超过': 1, '低于': 1, '高于': 1, 
+            '约': 0.5, '左右': 0.5, '近': 0.5, '超': 1
+        }
+        
+        # 类别映射到素材大类
+        self.type_mapping = {
+            '财务数据': '事实数据',
+            '市场数据': '事实数据',
+            '运营数据': '事实数据',
+            '融资数据': '事实数据',
+            '产品创新': '典型案例',
+            '企业战略': '典型案例',
+            '高管言论': '专家观点',
+            '行业政策': '专家观点',
+            '竞争动态': '竞品动态',
+            '风险事件': '竞品动态'
+        }
     
     def classify(self, material: Dict) -> Dict:
         """
@@ -84,31 +131,52 @@ class MaterialClassifier:
         # 检测是否包含数据
         has_data = self._detect_data(text)
         
-        # 计算与各分类的匹配度
+        # 检测是否有否定词（降低某些类别的置信度）
+        has_negation = self._detect_negation(text)
+        
+        # 计算与各分类的加权匹配分数
         category_scores = {}
         for category, keywords in self.category_keywords.items():
-            score = self._calculate_match_score(text, keywords)
+            score, matched_keywords = self._calculate_weighted_score(text, keywords)
+            
+            # 如果有否定词，降低高管言论等主观类别的分数
+            if has_negation and category in ['高管言论', '风险事件']:
+                score *= 0.7
+            
             if score > 0:
-                category_scores[category] = score
+                category_scores[category] = {
+                    'score': score,
+                    'matched_keywords': matched_keywords
+                }
         
         # 确定主分类和子分类
         if category_scores:
-            sorted_categories = sorted(category_scores.items(), key=lambda x: x[1], reverse=True)
+            sorted_categories = sorted(
+                category_scores.items(), 
+                key=lambda x: x[1]['score'], 
+                reverse=True
+            )
             primary_category = sorted_categories[0][0]
+            primary_score = sorted_categories[0][1]['score']
             secondary_category = sorted_categories[1][0] if len(sorted_categories) > 1 else None
         else:
             primary_category = '其他'
+            primary_score = 0
             secondary_category = None
         
         # 映射到更高层级的类型
         material_type = self._map_to_material_type(primary_category)
+        
+        # 计算置信度（归一化到 0-1）
+        confidence = min(primary_score / 10.0, 1.0)  # 假设满分 10 分
         
         # 添加分类结果
         material['category'] = primary_category
         material['sub_category'] = secondary_category
         material['material_type'] = material_type
         material['has_data'] = has_data
-        material['category_confidence'] = category_scores.get(primary_category, 0)
+        material['category_confidence'] = round(confidence, 2)
+        material['matched_keywords'] = category_scores.get(primary_category, {}).get('matched_keywords', [])
         
         return material
     
@@ -126,46 +194,65 @@ class MaterialClassifier:
     
     def _detect_data(self, text: str) -> bool:
         """检测文本是否包含具体数据"""
-        for indicator in self.data_indicators:
+        # 检查数据指示词
+        total_weight = 0
+        for indicator, weight in self.data_indicators.items():
             if indicator in text:
-                return True
+                total_weight += weight
+        
+        if total_weight >= 2:  # 权重和达到 2 才认为有数据
+            return True
         
         # 检测数字模式（如 123.45, 1,234,567 等）
         number_pattern = r'\d+[,.]?\d*'
-        if re.search(number_pattern, text):
-            return True
+        numbers = re.findall(number_pattern, text)
         
+        # 至少 2 个数字才认为有数据
+        return len(numbers) >= 2
+    
+    def _detect_negation(self, text: str) -> bool:
+        """检测文本中是否包含否定词"""
+        for negation in self.negation_words:
+            if negation in text:
+                return True
         return False
     
-    def _calculate_match_score(self, text: str, keywords: List[str]) -> float:
+    def _calculate_weighted_score(self, text: str, keywords: Dict[str, int]) -> Tuple[float, List[str]]:
         """
-        计算文本与关键词列表的匹配分数
+        计算文本与关键词列表的加权匹配分数
         
         Args:
             text: 待分析文本
-            keywords: 关键词列表
+            keywords: 关键词字典（词->权重）
             
         Returns:
-            匹配分数 (0-1)
+            (分数，匹配的关键词列表)
         """
         if not keywords:
-            return 0.0
+            return 0.0, []
         
-        matches = 0
-        for keyword in keywords:
-            if keyword.lower() in text.lower():
-                matches += 1
+        matched_keywords = []
+        total_score = 0.0
         
-        # 归一化到 0-1 范围
-        score = matches / len(keywords)
+        text_lower = text.lower()
         
-        # 加权：如果匹配到 3 个以上关键词，给予额外加分
-        if matches >= 3:
-            score *= 1.5
-        elif matches >= 2:
-            score *= 1.2
+        for keyword, weight in keywords.items():
+            if keyword.lower() in text_lower:
+                matched_keywords.append(keyword)
+                total_score += weight
         
-        return min(score, 1.0)  # 上限为 1.0
+        # 基础分：匹配词的权重和
+        base_score = total_score
+        
+        #  bonus：如果匹配到 3 个以上关键词，给予额外加分
+        if len(matched_keywords) >= 5:
+            base_score *= 1.5
+        elif len(matched_keywords) >= 3:
+            base_score *= 1.3
+        elif len(matched_keywords) >= 2:
+            base_score *= 1.1
+        
+        return base_score, matched_keywords
     
     def _map_to_material_type(self, category: str) -> str:
         """
@@ -177,20 +264,7 @@ class MaterialClassifier:
         Returns:
             素材大类
         """
-        type_mapping = {
-            '财务数据': '事实数据',
-            '市场数据': '事实数据',
-            '运营数据': '事实数据',
-            '融资数据': '事实数据',
-            '产品创新': '典型案例',
-            '企业战略': '典型案例',
-            '高管言论': '专家观点',
-            '行业政策': '专家观点',
-            '竞争动态': '竞品动态',
-            '风险事件': '竞品动态'
-        }
-        
-        return type_mapping.get(category, '其他')
+        return self.type_mapping.get(category, '其他')
     
     def get_statistics(self, materials: List[Dict]) -> Dict:
         """
@@ -206,8 +280,12 @@ class MaterialClassifier:
             'total': len(materials),
             'by_type': {},
             'by_category': {},
-            'with_data': 0
+            'with_data': 0,
+            'high_confidence': 0,  # 置信度>0.8 的数量
+            'avg_confidence': 0
         }
+        
+        total_confidence = 0
         
         for m in materials:
             # 按类型统计
@@ -221,6 +299,16 @@ class MaterialClassifier:
             # 含数据的素材数量
             if m.get('has_data', False):
                 stats['with_data'] += 1
+            
+            # 高置信度统计
+            confidence = m.get('category_confidence', 0)
+            if confidence > 0.8:
+                stats['high_confidence'] += 1
+            total_confidence += confidence
+        
+        # 计算平均置信度
+        if materials:
+            stats['avg_confidence'] = round(total_confidence / len(materials), 2)
         
         return stats
 
@@ -240,3 +328,5 @@ if __name__ == '__main__':
     print(f"主分类：{result['category']}")
     print(f"素材类型：{result['material_type']}")
     print(f"包含数据：{result['has_data']}")
+    print(f"置信度：{result['category_confidence']}")
+    print(f"匹配关键词：{result['matched_keywords']}")

@@ -1,13 +1,15 @@
 """
 exporter.py - 素材导出器模块
-负责将采集的素材导出为多种格式（Markdown、JSON、CSV）
-支持生成引用清单和写作灵感提示
+
+负责将采集的素材导出为多种格式（Markdown、JSON、CSV、Word）
+支持生成引用清单、写作灵感提示和素材评估表
 """
 
 import json
 import csv
 from datetime import datetime
 from typing import List, Dict, Any
+from pathlib import Path
 
 
 class MaterialExporter:
